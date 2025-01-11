@@ -102,6 +102,7 @@ class PlayerArena {
             public int parentAction;
             public double maxScore;
             public double minScore = Integer.MAX_VALUE;
+            public boolean enemyTurn;
 
             public Node(GameState gameState) {
                 state = gameState;
@@ -127,7 +128,12 @@ class PlayerArena {
                 if (child.simulationsCount == 0) {
                     return Double.POSITIVE_INFINITY;
                 }
-                double exploitation = ((double) child.score / child.simulationsCount - minScore) / ((maxScore - minScore));
+                double exploitation;
+                if (enemyTurn) {
+                    exploitation = (maxScore - (double) child.score / child.simulationsCount) / ((maxScore - minScore));
+                } else {
+                    exploitation = ((double) child.score / child.simulationsCount - minScore) / ((maxScore - minScore));
+                }
                 double exploration = EXPLORATION_PARAM * Math.sqrt(
                         Math.log(this.simulationsCount) / child.simulationsCount);
                 return exploitation + exploration;
@@ -135,6 +141,7 @@ class PlayerArena {
         }
 
         public int run(GameState initialState) {
+            long time = System.nanoTime();
             Node root = new Node(initialState);
 
             for (int i = 0; i < MAX_ITERATIONS; i++) {
@@ -155,6 +162,7 @@ class PlayerArena {
                 path.add(node);
                 node = node.finalBestChild();
             }
+//            Node bestChild = root.bestChild();
             Node bestChild = root.finalBestChild();
             return bestChild == null ? 0 : bestChild.parentAction; // Return the best move
         }
@@ -170,25 +178,14 @@ class PlayerArena {
             if (node.state.isGameOver()) {
                 return node; // Terminal state, no expansion needed
             }
-            GameState state = node.state;
 
-//            int a1 = HurdleRaceStrategy.getAction((HurdleRaceState) node.state.games[0], node.state.enemyId1);
-//            int a2 = HurdleRaceStrategy.getAction((HurdleRaceState) node.state.games[0], node.state.enemyId1);
-//            int a1 = PerfectStrategy.getPerfectAction((DivingState) node.state.games[3]);
-//            int a2 = PerfectStrategy.getPerfectAction((DivingState) node.state.games[3]);
-            int a1 = PerfectStrategy.getRandomAction();
-            int a2 = PerfectStrategy.getRandomAction();
-//            if (state.games[0].stepsLeft() < state.games[3].stepsLeft()) {
-//                a1 = PerfectStrategy.getPerfectAction((DivingState) state.games[3]);
-//                a2 = PerfectStrategy.getPerfectAction((DivingState) state.games[3]);
-//            } else {
-//                a1 = PerfectStrategy.getPerfectAction((HurdleRaceState) state.games[0], state.enemyId1);
-//                a2 = PerfectStrategy.getPerfectAction((HurdleRaceState) state.games[0], state.enemyId2);
-//            }
             for (int i = 0; i < 4; i++) {
-//                GameState childState = (new Action(i, i, i)).apply(node.state);
-//                GameState childState = (new Action(i, a1, a2)).apply(node.state);
-                GameState childState = (new Action(i, 0, 0)).applyPlayer(node.state);
+                GameState childState;
+                if (node.enemyTurn) {
+                    childState = (new Action(-1, i, i)).applyEnemy(node.state);
+                } else {
+                    childState = (new Action(i, -1, -1)).applyPlayer(node.state);
+                }
                 boolean alreadyExpanded = false;
                 for (int childAction: node.childrenActions) {
                     if (childAction == i) {
@@ -200,6 +197,7 @@ class PlayerArena {
                     Node childNode = new Node(childState);
                     childNode.parent = node;
                     childNode.parentAction = i;
+                    childNode.enemyTurn = !node.enemyTurn;
                     node.children.add(childNode);
                     node.childrenActions.add(i);
                     return childNode; // Return the newly expanded node
@@ -210,25 +208,19 @@ class PlayerArena {
 
         public static float simulation(Node node) {
             GameState state = node.state;
-            GameState minState = state;
-            float minScore = Integer.MAX_VALUE;
-            for (int enemyAction1 = 0; enemyAction1 < 4; enemyAction1++) {
-                for (int enemyAction2 = 0; enemyAction2 < 4; enemyAction2++) {
-                    Action enemyAction = new Action(0, enemyAction1, enemyAction2);
-                    GameState newState = enemyAction.applyEnemy(state);
-                    float score = simulationInternal(newState);
-                    if (score < minScore) {
-                        minScore = score;
-                        minState = newState;
-                    }
-                }
+            GameState newState;
+            if (node.enemyTurn) {
+                Action enemyAction = new Action(0, PerfectStrategy.getRandomAction(), PerfectStrategy.getRandomAction());
+                newState = enemyAction.applyEnemy(state);
+            } else {
+                newState = state;
             }
-            node.state = minState;
-            return minScore;
+
+            return simulationInternal(newState);
         }
 
         private static float simulationInternal(GameState state) {
-            while (!state.isGameOver()) {//todo
+            while (!state.isGameOver()) {
                 int action1 = PerfectStrategy.getRandomAction();
                 int action2 = PerfectStrategy.getRandomAction();
                 int action = PerfectStrategy.getRandomAction();
@@ -391,7 +383,7 @@ class PlayerArena {
             }
         }
 
-        public boolean isGameOver() { //todo ??
+        public boolean isGameOver() {
             return games[0].isFinished() && games[1].isFinished() && games[2].isFinished() && games[3].isFinished();
         }
 
