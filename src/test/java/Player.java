@@ -89,8 +89,7 @@ class Player {
     }
 
     public static class MonteCarloTreeSearch {
-        private static final int MAX_ITERATIONS = 100; // Number of iterations
-        private static final double EXPLORATION_PARAM = 1.4;
+        private static final double EXPLORATION_PARAM = 0.35;
 
         public static class Node {
             public GameState state;
@@ -151,7 +150,7 @@ class Player {
                 Node expandedNode = expansion(selectedNode);
                 float result = simulation(expandedNode);
                 backpropagation(expandedNode, result);
-                if (expandedNode.state.isGameOver() || i % 10 == 0 && System.nanoTime() - time >= 40_000_000L) {
+                if (i == 5000 || expandedNode.state.isGameOver() || i % 10 == 0 && System.nanoTime() - time >= 40_000_000L) {
                     MyLog.err("Needed iterations: " + i);
                     break;
                 }
@@ -211,7 +210,8 @@ class Player {
             GameState state = node.state;
             GameState newState;
             if (node.enemyTurn) {
-                Action enemyAction = new Action(0, PerfectStrategy.getRandomAction(), PerfectStrategy.getRandomAction());
+                Action enemyAction = new Action(0, PerfectStrategy.getRandomAction(state, state.enemyId1),
+                        PerfectStrategy.getRandomAction(state, state.enemyId2));
                 newState = enemyAction.applyEnemy(state);
             } else {
                 newState = state;
@@ -222,19 +222,12 @@ class Player {
 
         private static float simulationInternal(GameState state) {
             while (!state.isGameOver()) {
-                int action1 = PerfectStrategy.getRandomAction();
-                int action2 = PerfectStrategy.getRandomAction();
-                int action = PerfectStrategy.getRandomAction();
+                int action1 = PerfectStrategy.getRandomAction(state, state.enemyId1);
+                int action2 = PerfectStrategy.getRandomAction(state, state.enemyId2);
+                int action = PerfectStrategy.getRandomAction(state, state.playerId);
                 state = (new Action(action, action1, action2)).apply(state);
             }
-            return (state.scores[state.playerId].getGameScore(0) + state.games[0].getScore())
-                    * (state.scores[state.playerId].getGameScore(1) + state.games[1].getScore())
-                    * (state.scores[state.playerId].getGameScore(2) + state.games[2].getScore())
-                    * (state.scores[state.playerId].getGameScore(3) + state.games[3].getScore())
-                    + (state.games[0].getScore()
-                    + state.games[1].getScore()
-                    + state.games[2].getScore()
-                    + state.games[3].getScore()) / 9f;
+            return state.getFinalScore(state.playerId) - state.getFinalScore(state.enemyId1) - state.getFinalScore(state.enemyId2);
         }
 
         private void backpropagation(Node node, float result) {
@@ -256,39 +249,52 @@ class Player {
     public static class PerfectStrategy {
         private static int q = 0;
 
-        public static int getRandomAction() {
-            return q++ % 4;
+        public static int getRandomAction(GameState state, int id) {
+//            int w = (id + q++) % 3;
+//
+//            return switch (w) {
+//                case 0 -> getPerfectAction((HurdleRaceState) state.games[0], id);
+//                case 1 -> getPerfectAction((ArcheryState) state.games[1], id);
+//                case 2 -> getPerfectAction((DivingState) state.games[3], id);
+//                default -> (id + q++) % 4;
+//            };
+
+            return (id + q++) % 4;
         }
 
-        public static int getPerfectAction(DivingState state) {
+        public static int getPerfectAction(DivingState state, int id) {
             return state.goals[0];
         }
 
-        public static int getPerfectAction(HurdleRaceState state, int idx) {
-            int[] r = new int[4];
+        public static int getPerfectAction(ArcheryState state, int id) {
+            int[] pos = state.positions[id];
+            if (Math.abs(pos[0]) > Math.abs(pos[1])) {
+                if (pos[0] > 0) {
+                    return Action.LEFT;
+                } else {
+                    return Action.RIGHT;
+                }
+            } else {
+                if (pos[1] > 0) {
+                    return Action.UP;
+                } else {
+                    return Action.DOWN;
+                }
+            }
+        }
 
+        public static int getPerfectAction(HurdleRaceState state, int idx) {
             int pos = state.positions[idx];
 
             if (pos < state.track.length - 1 && state.track[pos + 1] == HurdleRaceState.HURDLE) {
-                r[0]++;
-            } else if (pos < state.track.length - 2 && state.track[pos + 2] == HurdleRaceState.HURDLE) {
-                r[1]++;
-            } else if (pos < state.track.length - 3 && state.track[pos + 3] == HurdleRaceState.HURDLE) {
-                r[2]++;
-            } else {
-                r[3]++;
-            }
-
-            if (r[0] > 0) {
                 return Action.UP;
-            } else if(r[1] > 0) {
+            } else if (pos < state.track.length - 2 && state.track[pos + 2] == HurdleRaceState.HURDLE) {
                 return Action.LEFT;
-            } else if(r[2] > 0) {
+            } else if (pos < state.track.length - 3 && state.track[pos + 3] == HurdleRaceState.HURDLE) {
                 return Action.DOWN;
-            } else if(r[3] > 0) {
+            } else {
                 return Action.RIGHT;
             }
-            return Action.RIGHT;
         }
     }
 
@@ -384,6 +390,17 @@ class Player {
             }
         }
 
+        public float getFinalScore(int idx) {
+            return (scores[idx].getGameScore(0) + games[0].getScore(idx))
+                    * (scores[idx].getGameScore(1) + games[1].getScore(idx))
+                    * (scores[idx].getGameScore(2) + games[2].getScore(idx))
+                    * (scores[idx].getGameScore(3) + games[3].getScore(idx))
+                    + (games[0].getScore(idx)
+                    + games[1].getScore(idx)
+                    + games[2].getScore(idx)
+                    + games[3].getScore(idx)) / 9f;
+        }
+
         public boolean isGameOver() {
             return games[0].isFinished() && games[1].isFinished() && games[2].isFinished() && games[3].isFinished();
         }
@@ -468,10 +485,21 @@ class Player {
             return positions[0] >= track.length - 1 || positions[1] >= track.length - 1 || positions[2] >= track.length - 1;
         }
 
-        public int getScore() {
+        public int getPlayerScore() {
             if (positions[playerId] >= positions[enemyId1] && positions[playerId] >= positions[enemyId2]) {
                 return 3;
             } else if (positions[playerId] >= positions[enemyId1] || positions[playerId] >= positions[enemyId2]) {
+                return 1;
+            }
+            return 0;
+        }
+
+        public int getScore(int idx1) {
+            int idx2 = (idx1 + 1) % 3;
+            int idx3 = (idx1 + 2) % 3;
+            if (positions[idx1] >= positions[idx2] && positions[idx1] >= positions[idx3]) {
+                return 3;
+            } else if (positions[idx1] >= positions[idx2] || positions[idx1] >= positions[idx3]) {
                 return 1;
             }
             return 0;
@@ -607,10 +635,22 @@ class Player {
         }
 
         @Override
-        public int getScore() {
+        public int getPlayerScore() {
             if (points[playerId] >= points[enemyId1] && points[playerId] >= points[enemyId2]) {
                 return 3;
             } else if (points[playerId] >= points[enemyId1] || points[playerId] >= points[enemyId2]) {
+                return 1;
+            }
+            return 0;
+        }
+
+        public int getScore(int idx1) {
+            int idx2 = (idx1 + 1) % 3;
+            int idx3 = (idx1 + 2) % 3;
+
+            if (points[idx1] >= points[idx2] && points[idx1] >= points[idx3]) {
+                return 3;
+            } else if (points[idx1] >= points[idx2] || points[idx1] >= points[idx3]) {
                 return 1;
             }
             return 0;
@@ -707,13 +747,29 @@ class Player {
         }
 
         @Override
-        public int getScore() {
+        public int getPlayerScore() {
             double playerDist = Math.sqrt(positions[playerId][0] * positions[playerId][0] + positions[playerId][1]*positions[playerId][1]);
             double enemyDist1 = Math.sqrt(positions[enemyId1][0] * positions[enemyId1][0] + positions[enemyId1][1]*positions[enemyId1][1]);
             double enemyDist2 = Math.sqrt(positions[enemyId2][0] * positions[enemyId2][0] + positions[enemyId2][1]*positions[enemyId2][1]);
             if (playerDist <= enemyDist1 && playerDist <= enemyDist2) {
                 return 3;
             } else if (playerDist <= enemyDist1 || playerDist <= enemyDist2) {
+                return 1;
+            }
+            return 0;
+        }
+
+        @Override
+        public int getScore(int idx1) {
+            int idx2 = (idx1 + 1) % 3;
+            int idx3 = (idx1 + 2) % 3;
+
+            double dist1 = Math.sqrt(positions[idx1][0] * positions[idx1][0] + positions[idx1][1]*positions[idx1][1]);
+            double dist2 = Math.sqrt(positions[idx2][0] * positions[idx2][0] + positions[idx2][1]*positions[idx2][1]);
+            double dist3 = Math.sqrt(positions[idx3][0] * positions[idx3][0] + positions[idx3][1]*positions[idx3][1]);
+            if (dist1 <= dist2 && dist1 <= dist3) {
+                return 3;
+            } else if (dist1 <= dist2 || dist1 <= dist3) {
                 return 1;
             }
             return 0;
@@ -812,7 +868,8 @@ class Player {
 
         public boolean isFinished() {return true;}
 
-        public int getScore() {return 0;}
+        public int getPlayerScore() {return 0;}
+        public int getScore(int idx) {return 0;}
 
         public MiniGameState next(Action action) {return this;}
         public MiniGameState playerNext(Action action) {return this;}

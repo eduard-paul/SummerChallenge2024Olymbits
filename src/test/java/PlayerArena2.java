@@ -3,7 +3,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 import java.util.*;
 
-class PlayerArena {
+class PlayerArena2 {
     public static class MyLog {
 
         private static final MyLog INSTANCE = new MyLog();
@@ -90,7 +90,7 @@ class PlayerArena {
 
     public static class MonteCarloTreeSearch {
         private static final int MAX_ITERATIONS = 100; // Number of iterations
-        private static final double EXPLORATION_PARAM = 0.35;
+        private static final double EXPLORATION_PARAM = 0.36;
 
         public static class Node {
             public GameState state;

@@ -32,9 +32,9 @@ public class Main {
 //
 //		gameRunner.start(8888);
 
-		runSeed(8787933113005275327l);
+		runSeed(-1717375063034309773l);
 
-		runTests(1000, true, Player.class, PlayerArena.class, PlayerArena.class);
+		runTests(1000, true, Player.class, PlayerArena.class, PlayerArena2.class);
 	}
 
 	private static void runSeed(long seed) {
@@ -42,11 +42,11 @@ public class Main {
 		gameRunner.setSeed(seed);
 		gameRunner.setLeagueLevel(19);
 
-		gameRunner.addAgent(Player.class, "IDE Agent");
 //        gameRunner.addAgent(PlayerArena.class, "Arena Agent");
 //        gameRunner.addAgent(PlayerTest.class, "Arena Agent");
 		gameRunner.addAgent(PlayerArena.class, "Arena Agent");
-		gameRunner.addAgent(PlayerArena.class, "Arena Agent");
+		gameRunner.addAgent(Player.class, "IDE Agent");
+		gameRunner.addAgent(PlayerArena2.class, "Arena Agent");
 //        gameRunner.addAgent(SimpleAgent.class, "Simple Agent");
 
 		Properties params = new Properties();
@@ -66,12 +66,22 @@ public class Main {
 			long seed = rand.nextLong();
 
 			MultiplayerGameRunner gameRunner2 = new MultiplayerGameRunner();
-			gameRunner2.setLeagueLevel(5);
+			gameRunner2.setLeagueLevel(19);
 			gameRunner2.setSeed(seed);
 
-			gameRunner2.addAgent(agent1, agent1.getSimpleName());
-			gameRunner2.addAgent(agent2, agent2.getSimpleName());
-			gameRunner2.addAgent(agent3, agent3.getSimpleName());
+			if (i % 3 == 0) {
+				gameRunner2.addAgent(agent1, agent1.getSimpleName());
+				gameRunner2.addAgent(agent2, agent2.getSimpleName());
+				gameRunner2.addAgent(agent3, agent3.getSimpleName());
+			} else if (i % 3 == 1) {
+				gameRunner2.addAgent(agent2, agent2.getSimpleName());
+				gameRunner2.addAgent(agent3, agent3.getSimpleName());
+				gameRunner2.addAgent(agent1, agent1.getSimpleName());
+			} else {
+				gameRunner2.addAgent(agent3, agent3.getSimpleName());
+				gameRunner2.addAgent(agent1, agent1.getSimpleName());
+				gameRunner2.addAgent(agent2, agent2.getSimpleName());
+			}
 
 			GameResult result = gameRunner2.simulate();
 
