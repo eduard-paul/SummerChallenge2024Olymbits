@@ -63,6 +63,7 @@ class PlayerArena {
     }
 
     public static int STEP = 0;
+    public static long time = 0;
 
     public static void main(String args[]) {
         MyLog.log().in = new Scanner(System.in);
@@ -78,7 +79,6 @@ class PlayerArena {
         Strategy strategy = new Strategy();
 
         while (true) {
-            MyLog.timeit("step");
             GameState gameState = GameState.read(MyLog.log().in, playerIdx);
             String s = strategy.onTick(gameState);
             MyLog.timeit("step");
@@ -141,29 +141,30 @@ class PlayerArena {
         }
 
         public int run(GameState initialState) {
-            long time = System.nanoTime();
+            MyLog.timeit("run");
             Node root = new Node(initialState);
 
-            for (int i = 0; i < MAX_ITERATIONS; i++) {
+            int i = 0;
+            while (true) {
+                i++;
                 Node selectedNode = selection(root);
                 Node expandedNode = expansion(selectedNode);
                 float result = simulation(expandedNode);
                 backpropagation(expandedNode, result);
-                if (expandedNode.state.isGameOver()) {
+                if (expandedNode.state.isGameOver() || i % 10 == 0 && System.nanoTime() - time >= 40_000_000L) {
                     MyLog.err("Needed iterations: " + i);
                     break;
                 }
             }
 
-//            Node bestChild = root.bestChild();
-            Node node = root;
-            List<Node> path = new ArrayList<>();
-            while(node != null) {
-                path.add(node);
-                node = node.finalBestChild();
-            }
-//            Node bestChild = root.bestChild();
+//            Node node = root;
+//            List<Node> path = new ArrayList<>();
+//            while(node != null) {
+//                path.add(node);
+//                node = node.finalBestChild();
+//            }
             Node bestChild = root.finalBestChild();
+            MyLog.timeit("run");
             return bestChild == null ? 0 : bestChild.parentAction; // Return the best move
         }
 
@@ -391,6 +392,10 @@ class PlayerArena {
             GameState gameState = new GameState(id);
             for (int i = 0; i < 3; i++) {
                 gameState.scores[i] = Score.read(in);
+                if (i == 0) {
+                    MyLog.timeit("step");
+                    time = System.nanoTime();
+                }
             }
             for (int i = 0; i < 4; i++) {
                 gameState.games[i] = MiniGameState.read(in, id, i);
